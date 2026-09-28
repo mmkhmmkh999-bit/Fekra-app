@@ -56,7 +56,7 @@ export default function LoginPage() {
           is_active: adminData.is_active,
         })
 
-        // الأدمن — يروح للوحة
+        // ✅ الأدمن يروح للوحة التحكم
         router.push('/admin')
         return
       }
@@ -70,12 +70,11 @@ export default function LoginPage() {
       .eq('password_hash', hash)
       .single()
 
-    // لو مش لاقي بالإيميل، نجرب الإيميل بدون تطابق hash
     if (!customerData) {
       const { data: emailOnly } = await supabase
         .from('customers')
         .select('*')
-        .eq('email', isEmail ? input : input)
+        .eq('email', input)
         .single()
 
       if (emailOnly && (emailOnly.password_hash === hash || emailOnly.password_hash === password)) {
@@ -85,7 +84,8 @@ export default function LoginPage() {
           email: emailOnly.email,
           phone: emailOnly.phone,
         })
-        router.push('/account')
+        // ✅ العميل يروح للصفحة الرئيسية
+        router.push('/')
         return
       }
 
@@ -100,7 +100,8 @@ export default function LoginPage() {
       email: customerData.email,
       phone: customerData.phone,
     })
-    router.push('/account')
+    // ✅ العميل يروح للصفحة الرئيسية
+    router.push('/')
   }
 
   return (
@@ -197,12 +198,6 @@ export default function LoginPage() {
             className="inline-block w-full bg-white hover:bg-rose-50 text-rose-500 font-black py-3 rounded-2xl border-2 border-rose-200 hover:border-rose-300 transition text-center"
           >
             📝 إنشاء حساب جديد
-          </Link>
-        </div>
-
-        <div className="mt-4 text-center">
-          <Link href="/" className="text-slate-400 hover:text-rose-500 font-bold text-sm transition">
-            ← الرجوع للرئيسية
           </Link>
         </div>
       </div>
