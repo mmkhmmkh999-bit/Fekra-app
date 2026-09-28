@@ -14,6 +14,19 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // إشعار أمني
+  async function sendSecurityAlert(eventType: string, urgency: string, details: any) {
+    try {
+      await fetch('/api/security-alert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventType, urgency, details }),
+      })
+    } catch (e) {
+      // نتجاهل أي خطأ في الإشعار — مش لازم يعطل الدخول
+    }
+  }
+
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setError('')
@@ -23,42 +36,35 @@ export default function LoginPage() {
     const isEmail = input.includes('@')
     const hash = await hashPassword(password)
 
-    // ===== 1) لو مدخلش إيميل — نجرب الأدمن الأول =====
+    // ===== 1) لو مش إيميل — نجرب الأدمن عبر Server API =====
     if (!isEmail) {
-      const { data: adminData } = await supabase
-        .from('admins')
-        .select('*')
-        .eq('username', input)
-        .eq('is_active', true)
-        .single()
+      try {
+        const res = await fetch('/api/admin/auth-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: input, passwordHash: hash }),
+        })
 
-      if (adminData) {
-        const validPass =
-          adminData.password_hash === hash || adminData.password_hash === password
-
-        if (!validPass) {
-          setError('كلمة السر غلط')
-          setLoading(false)
+        if (res.ok) {
+          const data = await res.json()
+          setCurrentAdmin(data.admin)
+          router.push('/admin')
           return
         }
 
-        await supabase
-          .from('admins')
-          .update({ last_login: new Date().toISOString() })
-          .eq('id', adminData.id)
-
-        setCurrentAdmin({
-          id: adminData.id,
-          username: adminData.username,
-          full_name: adminData.full_name,
-          email: adminData.email,
-          role: adminData.role,
-          is_active: adminData.is_active,
-        })
-
-        // ✅ الأدمن يروح للوحة التحكم
-        router.push('/admin')
-        return
+        // لو الرد 401 بسبب "wrong_password" — نبعت إشعار أمني
+        if (res.status === 401) {
+          const errData = await res.json().catch(() => ({}))
+          if (errData.error === 'wrong_password') {
+            sendSecurityAlert('محاولة دخول فاشلة (أدمن)', 'warning', {
+              'اسم المستخدم': input,
+              'نوع الحساب': 'أدمن',
+              'الوقت': new Date().toLocaleString('ar-EG'),
+            })
+          }
+        }
+      } catch (e) {
+        // لو الـ API فشل، نكمل للعميل
       }
     }
 
@@ -66,11 +72,12 @@ export default function LoginPage() {
     const { data: customerData } = await supabase
       .from('customers')
       .select('*')
-      .eq('email', isEmail ? input : '')
+      .eq('email', input)
       .eq('password_hash', hash)
       .single()
 
     if (!customerData) {
+      // نجرب بالإيميل بس ونقارن الباسورد يدويًا
       const { data: emailOnly } = await supabase
         .from('customers')
         .select('*')
@@ -84,10 +91,16 @@ export default function LoginPage() {
           email: emailOnly.email,
           phone: emailOnly.phone,
         })
-        // ✅ العميل يروح للصفحة الرئيسية
         router.push('/')
         return
       }
+
+      // إشعار أمني بمحاولة فاشلة
+      sendSecurityAlert('محاولة دخول فاشلة (عميل)', 'warning', {
+        'المعرف': input,
+        'نوع الحساب': isEmail ? 'عميل' : 'غير معروف',
+        'الوقت': new Date().toLocaleString('ar-EG'),
+      })
 
       setError('الإيميل أو كلمة السر غلط')
       setLoading(false)
@@ -100,7 +113,6 @@ export default function LoginPage() {
       email: customerData.email,
       phone: customerData.phone,
     })
-    // ✅ العميل يروح للصفحة الرئيسية
     router.push('/')
   }
 
