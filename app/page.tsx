@@ -138,7 +138,7 @@ export default function HomePage() {
     window.location.href = '/login'
   }
 
-  const siteTitle = settings.site_title || 'متجر الكراسات'
+  const siteTitle = settings.site_title || 'Fekra'
   const siteDesc = settings.site_description || 'اطلب كراستك بتصميمك الخاص'
   const whatsapp = settings.whatsapp_number || ''
 
